@@ -1,0 +1,6 @@
+Status: FEASIBLE
+Best sol: [0, 20, 6, 12, 8, 1, 18, 9, 5, 3, 19, 2, 10, 15, 16, 11, 13, 14, 17, 7, 4, 0]
+Violations: 0
+Cost: 893.00
+Num Iter: 500
+Solve Time: 0.03 secs

@@ -5,7 +5,7 @@ import time
 
 class Client:
     def __init__(self, id: int|str, time_window: Tuple[int, int, int]):
-        self.id = id
+        self.id = int(id)
         self.earliness = time_window[0]
         self.tardiness = time_window[1]
         self.service_time = time_window[2]
@@ -184,8 +184,8 @@ def read_input_file(input_file: str) -> TSPTWProblem:
     
 class Solver(ABC):
     class Status:
-        FEASIBLE = 1
-        INFEASIBLE = 0
+        FEASIBLE = "FEASIBLE"
+        INFEASIBLE = "INFEASIBLE"
     def __init__(self, problem: TSPTWProblem):
         self.problem = problem
         self.best_solution: PermuSolution = None
@@ -193,7 +193,7 @@ class Solver(ABC):
         self.best_cost = 1e8
         self.best_penalty = 1e8
         self.solve_time = 0
-        
+        self.this_iter = 0
     
     def _choose_opr(self, oprs: List['Operator']):
         weights = [opr.prob for opr in oprs]
@@ -233,6 +233,11 @@ class Solver(ABC):
     def update_sol_time(self, start: float):
         self.solve_time = time.time() - start
         
+    def finish(self, start: int|float):
+        self.update_sol_time(start)
+        return Solver.Status.FEASIBLE if self.best_violations == 0 else Solver.Status.INFEASIBLE
+        
+        
         
     @abstractmethod
     def solve(self, debug: bool=False, **kwargs) -> Status:
@@ -254,7 +259,6 @@ class RandomInitOperator(InitOperator):
     def init(self):
         remains = [client for client in self.problem.clients if not client == self.problem.start]
         random.shuffle(remains)
-        print(remains)
         
         init_sol = PermuSolution(len(remains) + 2)
         init_sol.route = [self.problem.start] + remains + [self.problem.start]

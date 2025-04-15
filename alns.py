@@ -232,7 +232,6 @@ class ALNSSolver(Solver):
         self.remove_oprs = remove_oprs
         self.insert_oprs = insert_oprs
         self.lr = lr
-        self.this_iter = 0
         
         for opr in remove_oprs:
             opr.score = 0
@@ -257,7 +256,7 @@ class ALNSSolver(Solver):
             opr.prob = new_weight
         
     def solve(self, debug: bool=False, num_iters: int = 1000, max_solve_time: int=3600, 
-              remove_fraction: float = 0.2,
+              remove_fraction: int|float = 0.2,
               insert_idx_selected: int|Literal['all'] = 'all',
               update_weight_freq: float = 0.1):
         start = time.time()
@@ -265,20 +264,24 @@ class ALNSSolver(Solver):
         self.update_best(init_sol)
         
         update_weight_cycle = int(max(1, num_iters * update_weight_freq))
-                                                     
-        self._print_with_debug(str(init_sol), debug)
         
         for iter in range(1, num_iters+1):
+            self.this_iter = iter
             # Check time
             if time.time() - start > max_solve_time:
-                self.update_sol_time(start)
-                self.this_iter = iter
-                return Solver.Status.FEASIBLE if self.best_violations == 0 else Solver.Status.INFEASIBLE
+                return self.finish(start)
             
             # Remove phase
             remove_opr: RemoveOperator = self._choose_opr(self.remove_oprs)
-            remove_cnt = int(max(1, remove_fraction * len(self.problem.clients)))
+            if isinstance(remove_fraction, float):
+                remove_cnt = int(max(1, remove_fraction * len(self.problem.clients)))
+            else:
+                remove_cnt = remove_fraction
             partial_sol, remove_sol = remove_opr.remove(self.best_solution, remove_cnt)
+            
+            if time.time() - start > max_solve_time:
+                return self.finish(start)
+            
             # Insert phase
             insert_opr: InsertOperator = self._choose_opr(self.insert_oprs)
             new_sol = insert_opr.insert(partial_sol, remove_sol, insert_idx_selected)
@@ -294,8 +297,4 @@ class ALNSSolver(Solver):
             
             self._print_with_debug(f'Iter {iter}: Best vio: {self.best_violations}, Best penalty: {self.best_penalty}, Best cost: {self.best_cost}', debug)
         
-        if self.best_violations != 0:
-            self.update_sol_time(start)
-            return Solver.Status.INFEASIBLE
-        self.update_sol_time(start)
-        return Solver.Status.FEASIBLE
+        return self.finish(start)

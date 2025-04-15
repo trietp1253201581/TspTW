@@ -4,6 +4,8 @@ import random
 import copy
 from typing import List, Tuple
 import time
+import math
+
 class MovingOperator(Operator):
     @abstractmethod
     def apply(self, solution: PermuSolution) -> PermuSolution:
@@ -124,22 +126,95 @@ class LSSolver(Solver):
     def add_init_opr(self, init_opr: InitOperator):
         self.init_opr = init_opr
         
-    def solve(self, debug = False, max_iter: int = 100):
+    def clear_opr(self):
+        self.init_opr = None
+        self.moving_oprs.clear()
+        
+    @abstractmethod
+    def solve(self, debug = False, **kwargs):
+        pass
+    
+class HillClimbingSolver(LSSolver):
+    def __init__(self, problem,
+                 init_opr: InitOperator|None=None,
+                 moving_oprs: List[MovingOperator]=[]):
+        super().__init__(problem, init_opr, moving_oprs)
+
+    def solve(self, debug = False, max_iter: int = 100, max_solve_time: int = 3600):
         # Init
         start = time.time()
         sol = self.init_opr.init()
         self.update_best(sol)
-        
+    
         it = 0
         while it < max_iter:
             it += 1
+            self.this_iter = it
+            if time.time() - start > max_solve_time:
+                return self.finish(start)
             moving_opr: MovingOperator = self._choose_opr(self.moving_oprs)
             cand = moving_opr.apply(sol)
             self.update_best(cand)
             self._print_with_debug(f'Iter {it}: Best vio: {self.best_violations}, Best penalty: {self.best_penalty}, Best cost: {self.best_cost}, use: {moving_opr}', debug)
             
-        if self.best_violations == 0:
-            self.update_sol_time(start)
-            return Solver.Status.FEASIBLE
-        self.update_sol_time(start)
-        return Solver.Status.INFEASIBLE 
+        return self.finish(start)
+    
+class SimulatedAnnealingSolver(LSSolver):
+    def __init__(self,
+                 problem,
+                 init_opr: InitOperator|None=None,
+                 moving_oprs: List[Operator]=[],
+                 T0: float = 1000.0,
+                 alpha: float = 0.995):
+        super().__init__(problem, init_opr, moving_oprs)
+        self.T0 = T0
+        self.alpha = alpha
+
+    def solve(self,
+              debug: bool = False,
+              max_iter: int = 10000,
+              max_solve_time: int = 3600) -> Solver.Status:
+        start = time.time()
+
+        # 1) Khởi tạo
+        curr = self.init_opr.init()
+        # compute penalty, cost
+
+        # đặt best = curr
+        self.update_best(curr)
+        p, c = self.best_penalty, self.best_cost
+        curr_energy = p + c
+
+        T = self.T0
+
+        for it in range(1, max_iter+1):
+            self.this_iter = it
+            # 2) chọn ngẫu nhiên một move operator
+            if time.time() - start > max_solve_time:
+                return self.finish(start)
+            moving_opr: MovingOperator = self._choose_opr(self.moving_oprs)
+            cand = moving_opr.apply(curr)
+
+            # đánh giá
+            p2, c2 = self.problem.cal_penalty(cand), self.problem.cal_cost(cand)
+            cand_energy = p2 + c2
+            delta = cand_energy - curr_energy
+
+            # 3) chấp nhận theo Simulated Annealing
+            if delta <= 0 or random.random() < math.exp(-delta / T):
+                curr = cand
+                curr_energy = cand_energy
+                # nếu tốt hơn best, cập nhật
+                self.update_best(cand)
+
+            # 4) làm lạnh
+            T *= self.alpha
+
+            # 5) debug
+            if debug and it % (max_iter//10 or 1) == 0:
+                print(f"[SA] iter={it:5d} T={T:.3f}  "
+                      f"best=(vio={self.best_violations}, pen={self.best_penalty:.1f}, cost={self.best_cost:.1f})")
+
+        # lưu thời gian
+        return self.finish(start)
+    
