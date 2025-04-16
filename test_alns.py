@@ -50,6 +50,6 @@ for i in range(1, 12): # Iter for full test
             f.write(result)
             f.write('\n')
             
-    
+    break
 
 

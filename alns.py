@@ -8,18 +8,18 @@ import time
 class RemoveOperator(Operator):
         
     @abstractmethod
-    def remove(self, solution: PermuSolution, remove_cnt: int) -> Tuple[PermuSolution, PermuSolution]:
+    def __call__(self, solution: PermuSolution, remove_cnt: int) -> Tuple[PermuSolution, PermuSolution]:
         pass
 
 class InsertOperator(Operator):
     
     @abstractmethod
-    def insert(self, partial_solution: PermuSolution, removed_solution: PermuSolution,
+    def __call__(self, partial_solution: PermuSolution, removed_solution: PermuSolution,
                insert_idx_selected: int|Literal['all']) -> PermuSolution:
         pass
     
 class RandomRemoveOperator(RemoveOperator):
-    def remove(self, solution, remove_cnt):
+    def __call__(self, solution, remove_cnt):
         if len(solution.route) <= 3:
             return solution, PermuSolution(size=0)
         removed = random.sample(solution.get_main(), k=min(remove_cnt, len(solution.get_main())))
@@ -35,7 +35,7 @@ class RandomRemoveOperator(RemoveOperator):
         return partial_sol, removed_sol
     
 class WorstRemoveOperator(RemoveOperator):
-    def remove(self, solution, remove_cnt):
+    def __call__(self, solution, remove_cnt):
         route = solution.decode()
         curr_time = 0
         scores = []
@@ -67,7 +67,7 @@ class WorstRemoveOperator(RemoveOperator):
         return partial_sol, removed_sol
     
 class ShawRemoveOperator(RemoveOperator):
-    def remove(self, solution, remove_cnt):
+    def __call__(self, solution, remove_cnt):
         main_route = copy.deepcopy(solution.get_main())
         if len(main_route) <= 0:
             return solution, PermuSolution(size=0)
@@ -96,7 +96,7 @@ class ShawRemoveOperator(RemoveOperator):
         return partial_sol, removed_sol
     
 class GreedyInsertOperator(InsertOperator):
-    def insert(self, partial_solution, removed_solution, insert_idx_selected):
+    def __call__(self, partial_solution, removed_solution, insert_idx_selected):
         route = copy.deepcopy(partial_solution.route)
         
         for unorder_client in removed_solution.route:
@@ -134,7 +134,7 @@ class GreedyInsertOperator(InsertOperator):
         return new_sol
                     
 class RegretInsertOperator(InsertOperator):
-    def insert(self, partial_solution, removed_solution, insert_idx_selected):
+    def __call__(self, partial_solution, removed_solution, insert_idx_selected):
         route = copy.deepcopy(partial_solution.route)
         remaining = copy.deepcopy(removed_solution.route)
         
@@ -183,7 +183,7 @@ class RegretInsertOperator(InsertOperator):
         return new_sol
     
 class RandomInsertOperator(InsertOperator):
-    def insert(self, partial_solution, removed_solution, insert_idx_selected):
+    def __call__(self, partial_solution, removed_solution, insert_idx_selected):
         route = copy.deepcopy(partial_solution.route)
         remaining = copy.deepcopy(removed_solution.route)
         random.shuffle(remaining)
@@ -260,7 +260,7 @@ class ALNSSolver(Solver):
               insert_idx_selected: int|Literal['all'] = 'all',
               update_weight_freq: float = 0.1):
         start = time.time()
-        init_sol = self.init_opr.init()
+        init_sol = self.init_opr()
         self.update_best(init_sol)
         
         update_weight_cycle = int(max(1, num_iters * update_weight_freq))
@@ -277,14 +277,14 @@ class ALNSSolver(Solver):
                 remove_cnt = int(max(1, remove_fraction * len(self.problem.clients)))
             else:
                 remove_cnt = remove_fraction
-            partial_sol, remove_sol = remove_opr.remove(self.best_solution, remove_cnt)
+            partial_sol, remove_sol = remove_opr(self.best_solution, remove_cnt)
             
             if time.time() - start > max_solve_time:
                 return self.finish(start)
             
             # Insert phase
             insert_opr: InsertOperator = self._choose_opr(self.insert_oprs)
-            new_sol = insert_opr.insert(partial_sol, remove_sol, insert_idx_selected)
+            new_sol = insert_opr(partial_sol, remove_sol, insert_idx_selected)
             # Update cost & violation
             reward = self.update_best(new_sol)
             

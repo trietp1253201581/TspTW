@@ -3,4 +3,4 @@ Best sol: [0, 1, 2, 4, 3, 5, 6, 8, 7, 9, 10, 11, 12, 13, 14, 15, 17, 19, 16, 18,
 Violations: 9
 Cost: 803.00
 Num Iter: 500
-Solve Time: 0.31 secs
+Solve Time: 0.39 secs

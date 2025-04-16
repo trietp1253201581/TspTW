@@ -249,14 +249,17 @@ class Operator(ABC):
         self.problem = problem
         self.score = score
         
+    def __call__(self, *args, **kwds):
+        return super().__call__(*args, **kwds)
+        
 class InitOperator(Operator):
     
     @abstractmethod
-    def init(self) -> PermuSolution:
+    def __call__(self) -> PermuSolution:
         pass
     
 class RandomInitOperator(InitOperator):
-    def init(self):
+    def __call__(self):
         remains = [client for client in self.problem.clients if not client == self.problem.start]
         random.shuffle(remains)
         
@@ -265,7 +268,7 @@ class RandomInitOperator(InitOperator):
         return init_sol
 class HNNInitOperator(InitOperator):
     
-    def init(self):
+    def __call__(self):
         route: List[Client] = []
         curr = self.problem.start
         route.append(curr)
@@ -315,7 +318,7 @@ class HybridInitOperator(InitOperator):
         super().__init__(prob, problem)
         self.hn_ratio = hn_ratio  # tỉ lệ áp dụng HNN
     
-    def init(self):
+    def __call__(self):
         clients = [c for c in self.problem.clients if c != self.problem.start]
         random.shuffle(clients)
         num_hnn = int(len(clients) * self.hn_ratio)

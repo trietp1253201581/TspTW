@@ -8,11 +8,11 @@ import math
 
 class MovingOperator(Operator):
     @abstractmethod
-    def apply(self, solution: PermuSolution) -> PermuSolution:
+    def __call__(self, solution: PermuSolution) -> PermuSolution:
         pass
     
 class RandomSwapOperator(MovingOperator):
-    def apply(self, solution):
+    def __call__(self, solution):
         route = solution.get_main()
         n = len(route)
         i, j = random.sample(range(0, n), 2)
@@ -24,7 +24,7 @@ class RandomSwapOperator(MovingOperator):
         return new_sol
     
 class FirstBestSwapOperator(MovingOperator):
-    def apply(self, solution: PermuSolution) -> PermuSolution:
+    def __call__(self, solution: PermuSolution) -> PermuSolution:
         best = solution
         best_eval = (self.problem.cal_violations(solution),
                      self.problem.cal_penalty(solution),
@@ -47,7 +47,7 @@ class FirstBestSwapOperator(MovingOperator):
         return best
     
 class FirstRelocateOperator(MovingOperator):
-    def apply(self, solution: PermuSolution) -> PermuSolution:
+    def __call__(self, solution: PermuSolution) -> PermuSolution:
         best = solution
         best_eval = (self.problem.cal_violations(solution),
                      self.problem.cal_penalty(solution),
@@ -71,7 +71,7 @@ class FirstRelocateOperator(MovingOperator):
         return best
     
 class DelayMovingOperator(MovingOperator):
-    def apply(self, solution):
+    def __call__(self, solution):
         # tìm khách hàng vi phạm nhiều nhất (hoặc có penalty cao nhất)
         route = solution.get_main()
         penalties = []
@@ -143,7 +143,7 @@ class HillClimbingSolver(LSSolver):
     def solve(self, debug = False, max_iter: int = 100, max_solve_time: int = 3600):
         # Init
         start = time.time()
-        sol = self.init_opr.init()
+        sol = self.init_opr()
         self.update_best(sol)
     
         it = 0
@@ -153,7 +153,7 @@ class HillClimbingSolver(LSSolver):
             if time.time() - start > max_solve_time:
                 return self.finish(start)
             moving_opr: MovingOperator = self._choose_opr(self.moving_oprs)
-            cand = moving_opr.apply(sol)
+            cand = moving_opr(sol)
             self.update_best(cand)
             self._print_with_debug(f'Iter {it}: Best vio: {self.best_violations}, Best penalty: {self.best_penalty}, Best cost: {self.best_cost}, use: {moving_opr}', debug)
             
@@ -177,7 +177,7 @@ class SimulatedAnnealingSolver(LSSolver):
         start = time.time()
 
         # 1) Khởi tạo
-        curr = self.init_opr.init()
+        curr = self.init_opr()
         # compute penalty, cost
 
         # đặt best = curr
@@ -193,8 +193,7 @@ class SimulatedAnnealingSolver(LSSolver):
             if time.time() - start > max_solve_time:
                 return self.finish(start)
             moving_opr: MovingOperator = self._choose_opr(self.moving_oprs)
-            cand = moving_opr.apply(curr)
-
+            cand = moving_opr(curr)
             # đánh giá
             p2, c2 = self.problem.cal_penalty(cand), self.problem.cal_cost(cand)
             cand_energy = p2 + c2
