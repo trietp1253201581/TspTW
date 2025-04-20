@@ -223,7 +223,7 @@ class RandomInsertOperator(InsertOperator):
             
             insert_ids = [i for i in range(1, len(route))]
             if insert_idx_selected != 'all':
-                insert_ids = random.sample(insert_ids, k=min(insert_idx_selected, len(route)))
+                insert_ids = random.sample(insert_ids, k=min(insert_idx_selected, len(route) - 2))
             
             for i in insert_ids:
                 new_route = route[:i] + [unorder_client] + route[i:]
