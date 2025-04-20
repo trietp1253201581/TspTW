@@ -115,10 +115,37 @@ class DelayMovingOperator(MovingOperator):
 class LSSolver(Solver):
     def __init__(self, problem,
                  init_opr: InitOperator|None=None,
-                 moving_oprs: List[MovingOperator]=[]):
+                 moving_oprs: List[MovingOperator]=[],
+                 elite_cap: int = 5,
+                 allow_restart: bool = True,
+                 max_no_improve: int = 100):
         super().__init__(problem)
         self.init_opr = init_opr
         self.moving_oprs = moving_oprs
+        self.elite_cap = elite_cap
+        self.allow_restart = allow_restart
+        self.max_no_improve = max_no_improve
+        self._restart_cnt = 0
+        self.elite_solutions: List[Tuple[PermuSolution, Tuple[float, float]]] = []
+        
+    def add_to_elite(self, solution: PermuSolution):
+        penalty = self.problem.cal_penalty(solution)
+        cost = self.problem.cal_cost(solution)
+        val = penalty + cost
+
+        if len(self.elite_solutions) < self.elite_cap:
+            self.elite_solutions.append((copy.deepcopy(solution), (penalty, cost)))
+        else:
+            # Tìm lời giải có tổng penalty + cost cao nhất
+            worst_idx, worst_val = max(enumerate(self.elite_solutions), key=lambda x: x[1][1][0] + x[1][1][1])
+            if val < worst_val:
+                self.elite_solutions[worst_idx] = (copy.deepcopy(solution), (penalty, cost))
+                
+    def restart_from_elite(self) -> PermuSolution:
+        if len(self.elite_solutions) == 0:
+            return self.init_opr()
+        elite_sol, _ = random.choice(self.elite_solutions)
+        return copy.deepcopy(elite_sol)
         
     def add_moving_opr(self, moving_opr: MovingOperator):
         self.moving_oprs.append(moving_opr)
@@ -147,6 +174,7 @@ class HillClimbingSolver(LSSolver):
         self.update_best(sol)
     
         it = 0
+        no_improve = 0
         while it < max_iter:
             it += 1
             self.this_iter = it
@@ -154,7 +182,21 @@ class HillClimbingSolver(LSSolver):
                 return self.finish(start)
             moving_opr: MovingOperator = self._choose_opr(self.moving_oprs)
             cand = moving_opr(sol)
-            self.update_best(cand)
+            
+            old_best = self.best_penalty + self.best_cost
+            reward = self.update_best(cand)
+
+            if self.best_penalty + self.best_cost < old_best:
+                no_improve = 0
+            else:
+                no_improve += 1
+
+            if self.allow_restart and no_improve >= self.max_no_improve:
+                sol = self.restart_from_elite()  # restart
+                no_improve = 0
+                self._restart_cnt += 1
+                if debug:
+                    print(f"[Restart #{self._restart_cnt}] iter={it}")
             self._print_with_debug(f'Iter {it}: Best vio: {self.best_violations}, Best penalty: {self.best_penalty}, Best cost: {self.best_cost}, use: {moving_opr}', debug)
             
         return self.finish(start)
@@ -186,6 +228,8 @@ class SimulatedAnnealingSolver(LSSolver):
         curr_energy = p + c
 
         T = self.T0
+        
+        no_improve = 0
 
         for it in range(1, max_iter+1):
             self.this_iter = it
@@ -203,8 +247,24 @@ class SimulatedAnnealingSolver(LSSolver):
             if delta <= 0 or random.random() < math.exp(-delta / T):
                 curr = cand
                 curr_energy = cand_energy
-                # nếu tốt hơn best, cập nhật
-                self.update_best(cand)
+
+            old_best = self.best_penalty + self.best_cost
+            reward = self.update_best(curr)
+            if self.best_penalty + self.best_cost < old_best:
+                no_improve = 0
+            else:
+                no_improve += 1
+
+            # Restart nếu cần
+            if self.allow_restart and no_improve >= self.max_no_improve:
+                curr = self.restart_from_elite()
+                curr_energy = self.problem.cal_penalty(curr) + self.problem.cal_cost(curr)
+                no_improve = 0
+                self._restart_cnt += 1
+                if debug:
+                    print(f"[SA-Restart #{self._restart_cnt}] iter={it}")
+                T = self.T0  # reset nhiệt độ nếu cần
+
 
             # 4) làm lạnh
             T *= self.alpha

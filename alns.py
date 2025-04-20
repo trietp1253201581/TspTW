@@ -4,6 +4,8 @@ from abc import ABC, abstractmethod
 import random
 import copy
 import time
+import numpy as np
+from sklearn.cluster import KMeans
 
 class RemoveOperator(Operator):
         
@@ -90,6 +92,35 @@ class ShawRemoveOperator(RemoveOperator):
         removed_sol = PermuSolution(len(removed))
         removed_sol.route = removed
         
+        partial_sol = PermuSolution(len(partial))
+        partial_sol.route = partial
+        
+        return partial_sol, removed_sol
+    
+class TWClusterRemoveOperator(RemoveOperator):
+    def __init__(self, prob, problem = None, score = 0, k=10):
+        super().__init__(prob, problem, score)
+        self.k = k
+        
+    def __call__(self, solution, remove_cnt):
+        main_route = solution.get_main()
+        if len(main_route) == 0:
+            return solution, PermuSolution(size=0)
+        
+        # Extract feature
+        features = np.array([[c.earliness, c.tardiness, c.tardiness - c.earliness, c.service_time] for c in main_route])
+        kmeans = KMeans(n_clusters=self.k, n_init='auto', random_state=42).fit(features)
+        labels = kmeans.labels_
+        
+        # Chọn 1 cluster
+        target_cluster = random.choice(range(self.k))
+        to_remove = [client for idx, client in enumerate(main_route) if labels[idx] == target_cluster]
+        removed = random.sample(to_remove, k=min(remove_cnt, len(to_remove)))
+        removed_set = set(removed)
+        partial = [c for c in solution.route if c not in removed_set]
+        
+        removed_sol = PermuSolution(len(removed))
+        removed_sol.route = removed
         partial_sol = PermuSolution(len(partial))
         partial_sol.route = partial
         
@@ -220,6 +251,55 @@ class RandomInsertOperator(InsertOperator):
         new_sol.route = route
         
         return new_sol        
+    
+class TWClusterInsertOperator(InsertOperator):
+        
+    def __call__(self, partial_solution, removed_solution, insert_idx_selected):
+        route = partial_solution.route.copy()
+        to_insert = removed_solution.route.copy()
+        
+        if len(to_insert) == 0:
+            return partial_solution
+        
+        features = np.array([[c.earliness, c.tardiness, c.tardiness - c.earliness, c.service_time] 
+                             for c in route[1:-1]])
+        centroid = np.mean(features, axis=0) 
+        
+        # Tính độ tương đồng
+        scored_clients = []
+        for client in to_insert:
+            vec = np.array([client.earliness, client.tardiness,
+                            client.earliness - client.tardiness, client.service_time])
+            sim = np.linalg.norm(vec - centroid)
+            scored_clients.append((sim, client))
+            
+        scored_clients.sort()  # Ưu tiên TW gần centroid (tức ít gây ảnh hưởng tiến độ)
+
+        # Chèn từng client vào vị trí tốt nhất
+        for _, client in scored_clients:
+            best_eval = (float('inf'), float('inf'), float('inf'))
+            best_pos = None
+            insert_ids = list(range(1, len(route)))
+            if insert_idx_selected != 'all':
+                insert_ids = random.sample(insert_ids, k=min(insert_idx_selected, len(insert_ids)))
+            for i in insert_ids:
+                new_route = route[:i] + [client] + route[i:]
+                new_sol = PermuSolution(len(new_route))
+                new_sol.route = new_route
+                ev = (self.problem.cal_violations(new_sol),
+                      self.problem.cal_penalty(new_sol),
+                      self.problem.cal_cost(new_sol))
+                if ev < best_eval:
+                    best_eval = ev
+                    best_pos = i
+            if best_pos is not None:
+                route.insert(best_pos, client)
+            else:
+                route.insert(random.randint(1, len(route)-1), client)
+
+        new_sol = PermuSolution(len(route))
+        new_sol.route = route
+        return new_sol
                 
 class ALNSSolver(Solver):
     def __init__(self, problem: TSPTWProblem, 

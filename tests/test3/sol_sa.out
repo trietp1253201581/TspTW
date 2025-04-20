@@ -1,6 +1,6 @@
 Status: INFEASIBLE
-Best sol: [0, 1, 2, 4, 3, 5, 6, 8, 7, 9, 10, 11, 12, 13, 14, 15, 17, 19, 16, 18, 20, 0]
-Violations: 9
-Cost: 803.00
+Best sol: [0, 1, 2, 4, 3, 5, 7, 8, 9, 6, 11, 10, 12, 13, 14, 15, 17, 16, 18, 20, 19, 0]
+Violations: 8
+Cost: 835.00
 Num Iter: 500
-Solve Time: 0.39 secs
+Solve Time: 0.26 secs

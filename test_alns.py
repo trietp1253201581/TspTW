@@ -2,8 +2,9 @@ from common import read_console, TimeWindowConstraint, MustFollowConstraint, Per
 import alns
 from common import HNNInitOperator, HybridInitOperator
 
+
 for i in range(1, 12): # Iter for full test
-    problem = read_input_file(f'tests/test{i}/input.in')
+    problem = read_input_file(f'tests/test{5}/input.in')
 
     problem.add_constraint(TimeWindowConstraint())
     # problem.add_constraint(MustFollowConstraint())
@@ -43,7 +44,7 @@ for i in range(1, 12): # Iter for full test
     results.append(f'Solve Time: {solver.solve_time:.2f} secs')
 
     for result in results:
-        print(results)
+        print(result)
         
     with open(f'tests/test{i}/sol_alns.out', 'w') as f:
         for result in results:

@@ -1,32 +1,31 @@
 from common import read_console, TimeWindowConstraint, MustFollowConstraint, PermuSolution, Solver, read_input_file
-import ls
+import alns
 from common import HNNInitOperator, HybridInitOperator
 
+
 for i in range(1, 12): # Iter for full test
-    problem = read_input_file(f'tests/test{5}/input.in')
-    print(f'Test {i}')
+    problem = read_input_file(f'tests/test{7}/input.in')
+
     problem.add_constraint(TimeWindowConstraint())
     # problem.add_constraint(MustFollowConstraint())
 
     init_hnn = HybridInitOperator(prob=1, problem=problem, hn_ratio=0.12)
-    
-    random_swap = ls.RandomSwapOperator(0.3, problem)
-    best_swap = ls.FirstBestSwapOperator(0.2, problem)
-    best_relocate = ls.FirstRelocateOperator(0.15, problem)
-    delay_insert = ls.DelayMovingOperator(0.35, problem)
 
-    solver = ls.SimulatedAnnealingSolver(problem, T0=1000, alpha=0.98)
-    solver.clear_opr()
+    remove_cluster = alns.TWClusterRemoveOperator(prob=1, problem=problem, score=0, k=10)
+    insert_cluster = alns.TWClusterInsertOperator(prob=1, problem=problem, score=0)
+    solver = alns.ALNSSolver(problem, lr=0.1)
+
+
+
     solver.add_init_opr(init_hnn)
-
-    solver.add_moving_opr(random_swap)
-    solver.add_moving_opr(best_swap)
-    solver.add_moving_opr(best_relocate)
-    solver.add_moving_opr(delay_insert)
+    solver.add_remove_opr(remove_cluster)
+    
+    solver.add_insert_opr(insert_cluster)
     
     import random
     random.seed(42)
-    status = solver.solve(debug=True, max_iter=500, max_solve_time=100)
+    status = solver.solve(debug=True, num_iters=100, max_solve_time=500, remove_fraction=0.2,
+                        insert_idx_selected=30, update_weight_freq=0.2)
     
     results = []
 
@@ -40,7 +39,7 @@ for i in range(1, 12): # Iter for full test
     for result in results:
         print(result)
         
-    with open(f'tests/test{i}/sol_sa.out', 'w') as f:
+    with open(f'tests/test{i}/sol_alns.out', 'w') as f:
         for result in results:
             f.write(result)
             f.write('\n')
